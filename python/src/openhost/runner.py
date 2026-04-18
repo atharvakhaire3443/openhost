@@ -45,12 +45,14 @@ class ModelRunner:
         extra_args: tuple[str, ...] = (),
         env: Optional[dict[str, str]] = None,
         log_path: Optional[str] = None,
+        draft_model_path: Optional[str] = None,
     ) -> None:
         self.preset = preset
         self._port = port
         self._extra_args = extra_args
         self._env = env
         self._log_path = log_path
+        self._draft_model_path = draft_model_path
         self._process: Optional[subprocess.Popen] = None
         self._resolved_model_id: Optional[str] = None
         self._lock = threading.Lock()
@@ -109,12 +111,25 @@ class ModelRunner:
                 self._port = _pick_free_port()
 
             model_path = str(paths.effective_model_dir(self.preset))
+            effective_extra = tuple(self._extra_args)
+            if self._draft_model_path:
+                if self.preset.backend != "llama.cpp":
+                    raise RunnerError(
+                        "speculate_with is only supported with the llama.cpp backend "
+                        "(mlx_lm.server does not accept a draft-model flag)."
+                    )
+                effective_extra = effective_extra + (
+                    "-md", self._draft_model_path,
+                    "-ngld", "99",
+                    "--draft-max", "16",
+                    "--draft-min", "4",
+                )
             cmd = _materialize_command(
                 template=list(self.preset.command_template),
                 path=model_path,
                 port=self._port,
                 preset=self.preset,
-                extra_args=self._extra_args,
+                extra_args=effective_extra,
             )
 
             log_sink = (

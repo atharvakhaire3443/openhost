@@ -37,12 +37,37 @@ That one line auto-downloads the model on first run, starts the server, picks a 
 ### Model management
 
 ```python
-openhost.list_presets()                         # all known presets
+openhost.list_presets()                         # all built-in presets
 openhost.pull("qwen3.5-35b-uncensored")         # just download
 openhost.run("qwen3.5-35b-uncensored")          # start (auto-pulls if needed)
 openhost.running()                              # list active runners
 openhost.stop("qwen3.5-35b-uncensored")
 openhost.stop_all()                             # kill everything
+```
+
+### Any HuggingFace model — auto-detect from the repo id
+
+If the model isn't in the built-in presets, just pass a HF repo string. OpenHost
+will inspect the repo, pick the right backend (GGUF → llama.cpp, safetensors →
+MLX), pick a quant, and register it on the fly.
+
+```python
+# Llama 3.1 8B Q4_K_M (default quant pick) — downloads + runs in one call
+llm = openhost.make_chat("bartowski/Meta-Llama-3.1-8B-Instruct-GGUF")
+
+# Pick a specific quant
+llm = openhost.make_chat("bartowski/Meta-Llama-3.1-8B-Instruct-GGUF:Q5_K_M")
+
+# MLX model on Apple Silicon
+llm = openhost.make_chat("mlx-community/Qwen2.5-7B-Instruct-4bit")
+
+# More control
+from openhost import from_hf
+preset = from_hf(
+    "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+    filename="Meta-Llama-3.1-8B-Instruct-Q8_0.gguf",  # explicit file
+    context_length=8192,
+)
 ```
 
 Register your own model:

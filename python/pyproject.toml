@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openhost"
-version = "0.2.0"
+version = "0.3.0"
 description = "Run local LLMs from Python. LangChain-compatible. llama.cpp + MLX backends."
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [{ name = "OpenHost" }]
+authors = [{ name = "Atharva Khaire", email = "atharvakhaire2000@gmail.com" }]
 license = { text = "MIT" }
 keywords = ["llm", "local", "llama.cpp", "mlx", "langchain", "whisper"]
 classifiers = [
@@ -36,14 +36,26 @@ dependencies = [
 [project.optional-dependencies]
 whisper-mlx = ["mlx-whisper>=0.4"]
 whisper-faster = ["faster-whisper>=1.0"]
+voice = [
+    "sounddevice>=0.4",
+    "silero-vad>=5.1",
+    "numpy>=1.26",
+]
+voice-tts = [
+    "openhost[voice]",
+    "piper-tts>=1.2",
+]
+memory-embeddings = ["sentence-transformers>=3.0"]
 dev = ["pytest>=8", "ruff>=0.5"]
 
 [project.scripts]
 openhost = "openhost.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/openhost/openhost"
-Repository = "https://github.com/openhost/openhost"
+Homepage = "https://github.com/atharvakhaire3443/openhost"
+Repository = "https://github.com/atharvakhaire3443/openhost"
+Issues = "https://github.com/atharvakhaire3443/openhost/issues"
+Changelog = "https://github.com/atharvakhaire3443/openhost/blob/main/python/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]

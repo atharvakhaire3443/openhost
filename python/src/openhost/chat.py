@@ -15,6 +15,7 @@ def make_chat(
     temperature: float = 0.7,
     timeout: float = 600,
     auto_start: bool = True,
+    speculate_with: "str | ModelPreset | None" = None,
     **kwargs: Any,
 ):
     """Return a preconfigured `ChatOpenAI` for a local model.
@@ -37,6 +38,26 @@ def make_chat(
     registry = get_registry()
     preset = registry.resolve(model)
 
+    draft_path: "str | None" = None
+    if speculate_with is not None:
+        from . import paths
+        from .download import pull as _pull
+        draft_preset = registry.resolve(speculate_with)
+        if draft_preset.backend != "llama.cpp":
+            raise RuntimeError(
+                f"speculate_with draft must be a llama.cpp-backed preset; got "
+                f"{draft_preset.backend!r}."
+            )
+        # Ensure draft weights are present, then point the runner at the GGUF file.
+        _pull(draft_preset)
+        draft_dir = paths.effective_model_dir(draft_preset)
+        if draft_preset.primary_file:
+            draft_path = str(draft_dir / draft_preset.primary_file)
+        else:
+            raise RuntimeError(
+                f"speculate_with draft {draft_preset.id!r} has no primary_file set."
+            )
+
     runner = registry.get(preset)
     if runner is None or not runner.is_running:
         if not auto_start:
@@ -44,9 +65,15 @@ def make_chat(
                 f"{preset.id} is not running. Call openhost.run({preset.id!r}) first, "
                 f"or pass auto_start=True."
             )
-        runner = registry.ensure_running(preset)
+        runner = registry.ensure_running(preset, draft_model_path=draft_path)
 
     effective_max = max_tokens if max_tokens is not None else preset.recommended_max_tokens
+
+    # Custom httpx client: rewrites Qwen's non-standard `reasoning` field into
+    # standard `content` on the way back, so the OpenAI SDK / langchain don't
+    # see empty messages when the model thinks.
+    from ._qwen_compat import build_http_client
+    http_client = kwargs.pop("http_client", None) or build_http_client(timeout=timeout)
 
     return ChatOpenAI(
         base_url=runner.base_url,
@@ -56,5 +83,6 @@ def make_chat(
         max_tokens=effective_max,
         temperature=temperature,
         timeout=timeout,
+        http_client=http_client,
         **kwargs,
     )

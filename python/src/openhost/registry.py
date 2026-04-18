@@ -21,13 +21,19 @@ class _Registry:
         if isinstance(id_or_preset, ModelPreset):
             return id_or_preset
         preset = get_preset(id_or_preset)
-        if preset is None:
-            raise RunnerError(
-                f"No preset named {id_or_preset!r}. "
-                f"Use openhost.list_presets() to see available options, "
-                f"or register one with openhost.register_preset(...)."
-            )
-        return preset
+        if preset is not None:
+            return preset
+        # Fall back: does it look like a HuggingFace repo? Auto-register.
+        from .hf_auto import is_hf_ref, parse_model_ref, from_hf
+        if is_hf_ref(id_or_preset):
+            repo, quant = parse_model_ref(id_or_preset)
+            return from_hf(repo, quant=quant)
+        raise RunnerError(
+            f"No preset named {id_or_preset!r}. "
+            f"Use openhost.list_presets() to see built-ins, "
+            f"pass a HuggingFace repo id like 'owner/name' for auto-detect, "
+            f"or register one with openhost.register_preset(...)."
+        )
 
     def get(self, id_or_preset: "str | ModelPreset") -> Optional[ModelRunner]:
         preset = self.resolve(id_or_preset)
@@ -37,14 +43,18 @@ class _Registry:
         self,
         id_or_preset: "str | ModelPreset",
         ready_timeout: float = 180.0,
+        draft_model_path: Optional[str] = None,
     ) -> ModelRunner:
         preset = self.resolve(id_or_preset)
+        # When speculation is enabled, treat it as a distinct runner instance
+        # so a prior non-speculative runner isn't reused silently.
+        cache_key = preset.id if not draft_model_path else f"{preset.id}::spec::{draft_model_path}"
         with self._lock:
-            existing = self._runners.get(preset.id)
+            existing = self._runners.get(cache_key)
             if existing and existing.is_running:
                 return existing
-            runner = ModelRunner(preset)
-            self._runners[preset.id] = runner
+            runner = ModelRunner(preset, draft_model_path=draft_model_path)
+            self._runners[cache_key] = runner
         runner.start(ready_timeout=ready_timeout)
         return runner
 
