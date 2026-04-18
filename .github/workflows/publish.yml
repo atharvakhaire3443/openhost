@@ -1,0 +1,105 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      publish_target:
+        description: "Target index"
+        type: choice
+        required: true
+        default: testpypi
+        options: [testpypi, pypi]
+
+defaults:
+  run:
+    working-directory: python
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install build tooling
+        run: pip install build twine
+      - name: Verify tag matches pyproject version
+        id: meta
+        run: |
+          VERSION=$(python -c "import tomllib; print(tomllib.loads(open('pyproject.toml','rb').read().decode())['project']['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${GITHUB_REF_NAME#v}"
+            if [[ "$TAG" != "$VERSION" ]]; then
+              echo "::error::Tag v$TAG does not match pyproject version $VERSION"
+              exit 1
+            fi
+          fi
+      - name: Build
+        run: python -m build
+      - name: Check
+        run: twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: python/dist/
+
+  publish-testpypi:
+    # Only run on manual dispatch with testpypi target.
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_target == 'testpypi'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: dist/
+
+  publish-pypi:
+    # Run on tag push OR manual dispatch with pypi target.
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish_target == 'pypi')
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+
+  github-release:
+    needs: publish-pypi
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

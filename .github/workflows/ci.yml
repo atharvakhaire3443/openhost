@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "python/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "python/**"
+      - ".github/workflows/ci.yml"
+
+defaults:
+  run:
+    working-directory: python
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint
+        run: ruff check src
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install build tooling
+        run: pip install build twine
+      - name: Build distributions
+        run: python -m build
+      - name: Check metadata
+        run: twine check dist/*
+      - name: Smoke-test install
+        run: |
+          pip install dist/*.whl
+          python -c "import openhost; print(openhost.__version__); print([p.id for p in openhost.list_presets()])"
+      - name: Upload dists (3.11 only)
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: python/dist/
