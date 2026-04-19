@@ -8,17 +8,46 @@ Run local LLMs from Python. LangChain-compatible. No desktop app required.
 
 ```bash
 pip install openhost
-
-# Whisper backend (pick one based on your hardware)
-pip install 'openhost[whisper-mlx]'     # Apple Silicon (fast, Neural Engine)
-pip install 'openhost[whisper-faster]'  # CPU or CUDA GPUs
 ```
 
-Runtime backends you install separately:
+That one command pulls the bundled `llama.cpp` backend (`llama-cpp-python`)
+plus — on Apple Silicon — `mlx-lm` for native MLX inference. You can start
+running models immediately with **no extra setup** on:
+
+- **macOS (Apple Silicon)** — Metal GPU acceleration out of the box
+- **Linux (CPU)** — CPU baseline works
+- **Windows (CPU)** — CPU baseline works
+
+### GPU acceleration (NVIDIA / AMD)
+
+pip can't pick the right CUDA/ROCm wheel for you at install time. After
+`pip install openhost`, run one additional line for your toolkit:
+
 ```bash
-brew install llama.cpp        # or build from source
-pip install mlx-lm            # Apple Silicon only
+# NVIDIA CUDA 12.4
+pip install --upgrade --force-reinstall llama-cpp-python \
+  --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+
+# AMD ROCm 5.7
+pip install --upgrade --force-reinstall llama-cpp-python \
+  --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/rocm5.7
 ```
+
+Once that wheel is installed, openhost auto-detects the GPU and tunes
+`-ngl` (number of layers offloaded) based on available VRAM.
+
+### Optional extras
+
+```bash
+pip install 'openhost[whisper-mlx]'     # Apple Neural Engine whisper
+pip install 'openhost[whisper-faster]'  # CUDA or CPU whisper (faster-whisper)
+```
+
+### Power-user: use your own llama.cpp
+
+If you already have an external `llama-server` binary on PATH, openhost
+prefers it over the bundled Python backend (faster startup, current
+llama.cpp builds). No action needed — auto-detected.
 
 ## Usage
 

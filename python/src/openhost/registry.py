@@ -44,16 +44,29 @@ class _Registry:
         id_or_preset: "str | ModelPreset",
         ready_timeout: float = 180.0,
         draft_model_path: Optional[str] = None,
+        profile: Optional[str] = None,
+        warmup: bool = False,
     ) -> ModelRunner:
         preset = self.resolve(id_or_preset)
-        # When speculation is enabled, treat it as a distinct runner instance
-        # so a prior non-speculative runner isn't reused silently.
-        cache_key = preset.id if not draft_model_path else f"{preset.id}::spec::{draft_model_path}"
+        # When speculation or a specific profile is enabled, treat it as a
+        # distinct runner so a different previous configuration isn't reused.
+        cache_bits: list[str] = [preset.id]
+        if draft_model_path:
+            cache_bits.append(f"spec::{draft_model_path}")
+        if profile:
+            cache_bits.append(f"profile::{profile}")
+        cache_key = "::".join(cache_bits)
+
         with self._lock:
             existing = self._runners.get(cache_key)
             if existing and existing.is_running:
                 return existing
-            runner = ModelRunner(preset, draft_model_path=draft_model_path)
+            runner = ModelRunner(
+                preset,
+                draft_model_path=draft_model_path,
+                profile=profile,
+                warmup=warmup,
+            )
             self._runners[cache_key] = runner
         runner.start(ready_timeout=ready_timeout)
         return runner

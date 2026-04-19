@@ -17,7 +17,10 @@ def _has(mod: str) -> bool:
 
 
 def make_default_transcriber() -> Transcriber:
-    """Pick mlx-whisper on Apple Silicon if available, else faster-whisper."""
+    """Pick mlx-whisper on Apple Silicon if available, else faster-whisper.
+
+    On Windows / Linux we skip the MLX probe entirely — mlx-whisper is Apple-only.
+    """
     is_apple_silicon = platform.system() == "Darwin" and platform.machine() == "arm64"
 
     if is_apple_silicon and _has("mlx_whisper"):
@@ -28,11 +31,13 @@ def make_default_transcriber() -> Transcriber:
         from .faster import FasterWhisperBackend
         return FasterWhisperBackend()
 
-    raise TranscriptionError(
-        "No whisper backend available. Install one of:\n"
-        "  pip install 'openhost[whisper-mlx]'      # Apple Silicon\n"
-        "  pip install 'openhost[whisper-faster]'   # CPU or CUDA\n"
+    hint = (
+        "  pip install 'openhost[whisper-faster]'   # Windows / Linux / CPU or CUDA"
+        if not is_apple_silicon
+        else "  pip install 'openhost[whisper-mlx]'      # Apple Silicon\n"
+             "  pip install 'openhost[whisper-faster]'   # CPU / CUDA fallback"
     )
+    raise TranscriptionError("No whisper backend available. Install one of:\n" + hint)
 
 
 def transcribe(

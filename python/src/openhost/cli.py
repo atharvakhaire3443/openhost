@@ -86,6 +86,13 @@ def stop_cmd(model_id: str) -> None:
     typer.echo(f"Stopped {model_id}.")
 
 
+@app.command("doctor")
+def doctor_cmd() -> None:
+    """Diagnose install: hardware, llama.cpp backend, GPU readiness."""
+    from . import check_setup
+    check_setup()
+
+
 @app.command("running")
 def running_cmd() -> None:
     """Show runners alive in the current process (most useful from `python -m openhost`)."""

@@ -29,27 +29,56 @@ jobs:
         run: ruff check src
 
   build:
-    runs-on: ubuntu-latest
+    name: build ${{ matrix.os }} py${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        os: [ubuntu-latest, macos-14, windows-latest]
+        python-version: ["3.11"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.10"
+          - os: ubuntu-latest
+            python-version: "3.12"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: Install build tooling
-        run: pip install build twine
+        run: python -m pip install --upgrade pip build twine
+
       - name: Build distributions
         run: python -m build
+
       - name: Check metadata
         run: twine check dist/*
-      - name: Smoke-test install
+
+      # Smoke-test install. On Windows we skip the heavy llama-cpp-python
+      # compile (no prebuilt wheel for some combos) via --no-deps — we only
+      # verify the pure-Python surface of openhost imports.
+      - name: Smoke-test install (POSIX)
+        if: runner.os != 'Windows'
         run: |
           pip install dist/*.whl
           python -c "import openhost; print(openhost.__version__); print([p.id for p in openhost.list_presets()])"
-      - name: Upload dists (3.11 only)
-        if: matrix.python-version == '3.11'
+          python -c "from openhost.hardware import detect; print(detect().describe())"
+
+      - name: Smoke-test install (Windows, pure-Python surface only)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $wheel = Get-ChildItem dist\*.whl | Select-Object -First 1
+          pip install --no-deps $wheel.FullName
+          pip install httpx huggingface_hub typer langchain-core langchain-openai pydantic psutil
+          python -c "import openhost; print(openhost.__version__); print([p.id for p in openhost.list_presets()])"
+          python -c "from openhost.hardware import detect; print(detect().describe())"
+          python -c "from openhost.runner import _terminate_gracefully, _IS_WINDOWS; print('IS_WINDOWS', _IS_WINDOWS)"
+
+      - name: Upload dists (linux 3.11 only)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         uses: actions/upload-artifact@v4
         with:
           name: python-dist

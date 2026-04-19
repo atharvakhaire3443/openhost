@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openhost"
-version = "0.3.0"
+version = "0.4.0"
 description = "Run local LLMs from Python. LangChain-compatible. llama.cpp + MLX backends."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,6 +17,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -31,11 +32,23 @@ dependencies = [
     "langchain-core>=0.3",
     "langchain-openai>=0.2",
     "pydantic>=2.5",
+    # Bundled llama.cpp backend — works on macOS (Metal), Linux (CPU), Windows (CPU).
+    # NVIDIA GPU users: see README for the CUDA reinstall line.
+    "llama-cpp-python>=0.3",
+    # MLX auto-installed only on Apple Silicon where it can run.
+    "mlx-lm>=0.19; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    # psutil is optional but our hardware.probe uses it when available.
+    "psutil>=5.9",
 ]
 
 [project.optional-dependencies]
 whisper-mlx = ["mlx-whisper>=0.4"]
 whisper-faster = ["faster-whisper>=1.0"]
+# Hardware-specific extras for GPU-accelerated llama-cpp-python.
+# These pull the same wheel from a backend-specific index.
+# Example:   pip install "openhost[cuda]"
+cuda = ["llama-cpp-python>=0.3"]
+rocm = ["llama-cpp-python>=0.3"]
 voice = [
     "sounddevice>=0.4",
     "silero-vad>=5.1",

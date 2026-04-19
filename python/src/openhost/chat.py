@@ -16,6 +16,8 @@ def make_chat(
     timeout: float = 600,
     auto_start: bool = True,
     speculate_with: "str | ModelPreset | None" = None,
+    profile: "str | None" = None,
+    warmup: bool = False,
     **kwargs: Any,
 ):
     """Return a preconfigured `ChatOpenAI` for a local model.
@@ -65,7 +67,12 @@ def make_chat(
                 f"{preset.id} is not running. Call openhost.run({preset.id!r}) first, "
                 f"or pass auto_start=True."
             )
-        runner = registry.ensure_running(preset, draft_model_path=draft_path)
+        runner = registry.ensure_running(
+            preset,
+            draft_model_path=draft_path,
+            profile=profile,
+            warmup=warmup,
+        )
 
     effective_max = max_tokens if max_tokens is not None else preset.recommended_max_tokens
 

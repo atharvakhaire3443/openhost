@@ -55,7 +55,7 @@ from .extract import extract, ExtractionError
 from .session import session, ChatSession, Turn, Branch
 from .memory import memory, Memory, Fact
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 
 def pull(model_id: Union[str, ModelPreset], force: bool = False) -> str:
@@ -79,9 +79,52 @@ def pull(model_id: Union[str, ModelPreset], force: bool = False) -> str:
     return str(_pull(preset, force=force))
 
 
-def run(model_id: Union[str, ModelPreset]) -> ModelRunner:
-    """Start (or return the already-running) server for a model. Auto-pulls if needed."""
-    return get_registry().ensure_running(model_id)
+def run(
+    model_id: Union[str, ModelPreset],
+    *,
+    profile: "str | None" = None,
+    warmup: bool = False,
+) -> ModelRunner:
+    """Start (or return the already-running) server for a model. Auto-pulls if needed.
+
+    Args:
+        profile: one of ``"fast"``, ``"quality"``, ``"lowmem"``, ``"balanced"``.
+            Selects a bundle of llama.cpp tuning knobs. See :mod:`openhost.profiles`.
+        warmup: if True, issue a 1-token request after startup so the first
+            real call doesn't pay cold-cache cost.
+    """
+    return get_registry().ensure_running(model_id, profile=profile, warmup=warmup)
+
+
+def check_setup() -> None:
+    """Print a diagnostic: what hardware openhost sees, which llama backend is
+    active, and whether GPU acceleration is enabled. Use before the first
+    ``run()`` on a new machine to verify the install is ready."""
+    from .hardware import detect
+    from ._backend import (
+        choose_llama_backend,
+        llama_cpp_python_has_gpu,
+        llama_cpp_python_install_hint,
+        mlx_backend_available,
+    )
+
+    hw = detect()
+    print(f"openhost {__version__}")
+    print(f"Hardware: {hw.describe()}")
+
+    try:
+        backend = choose_llama_backend()
+        print(f"llama.cpp backend: {backend.kind}")
+        if backend.kind == "llama-cpp-python":
+            gpu = llama_cpp_python_has_gpu()
+            print(f"  GPU-enabled wheel: {gpu}")
+            if (hw.nvidia_vram_gb > 0 or hw.has_rocm) and not gpu:
+                print("  ⚠  Your GPU will be unused until you reinstall with a GPU wheel:")
+                print(f"    {llama_cpp_python_install_hint()}")
+    except Exception as exc:
+        print(f"llama.cpp backend: NOT AVAILABLE — {exc}")
+
+    print(f"MLX backend available: {mlx_backend_available()}")
 
 
 def stop(model_id: Union[str, ModelPreset]) -> None:
@@ -116,6 +159,7 @@ __all__ = [
     "stop",
     "stop_all",
     "running",
+    "check_setup",
     "ModelRunner",
     "RunnerInfo",
     "RunnerError",
